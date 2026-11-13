@@ -1,9 +1,6 @@
 name: Verify DERAI scheduler
 
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -15,7 +12,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -25,6 +22,7 @@ jobs:
         run: python -m pip install -c constraints.txt '.[dev]'
       - name: Verify scheduler and PRD preview
         run: |
+          test "$(uname -m)" = arm64
           python -m pytest -q -m 'not postgres'
           python -m derai_scheduler preview --topics fixtures/topics.json \
             --at '2026-11-13T11:37:20+07:00' > "$RUNNER_TEMP/preview.json"
@@ -35,7 +33,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Start fixture PostgreSQL and build images

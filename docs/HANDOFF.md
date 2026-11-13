@@ -26,7 +26,7 @@ Database fixture tersedia pada `127.0.0.1:55432`; tes memakai database terpisah.
 Jalankan `docker compose --profile dev up -d --build` untuk memulai loop.
 Cara menjalankan uji lengkap dan menghentikan layanan ada di [README](../README.md).
 
-[GitHub Actions](https://github.com/fata69/derai/actions/workflows/verify.yml) menjalankan tes scheduler tanpa PostgreSQL di macOS Apple Silicon dan tes lengkap dengan PostgreSQL fixture di Docker Linux. Tes ini tidak memakai API key atau database DERAI aktif.
+Untuk verifikasi tambahan, pemilik repo bisa memilih **Run workflow** di [GitHub Actions](https://github.com/fata69/derai/actions/workflows/verify.yml). Workflow manual menjalankan tes scheduler tanpa PostgreSQL di macOS Apple Silicon dan tes lengkap dengan PostgreSQL fixture di Docker Linux. Tes tidak memakai API key atau database DERAI aktif. Jika runner tidak dapat dimulai, gunakan langkah Docker Compose di atas.
 
 Repo memuat [contoh output yang diharapkan](../fixtures/expected-prd-jobs.json).
 Untuk menghasilkan snapshot PostgreSQL dan mereproduksi `match=true`,
