@@ -6,7 +6,14 @@ format jam, kunci deduplikasi, dan transaksi mengikuti PRD 13 November 2026.
 
 ## Reproduksi di Windows dengan Docker Desktop
 
-Ekstrak paket, buka PowerShell dari folder `collection-scheduler`, lalu jalankan:
+Untuk checkout baru, buka PowerShell dan jalankan:
+
+```powershell
+git clone https://github.com/fata69/derai.git
+Set-Location derai
+```
+
+Dari root repo (atau dari folder hasil ekstrak ZIP), jalankan:
 
 ```powershell
 .\scripts\local.ps1 Setup
