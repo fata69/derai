@@ -1,0 +1,65 @@
+name: Verify DERAI scheduler
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: macOS Apple Silicon
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - name: Install scheduler
+        run: python -m pip install -c constraints.txt '.[dev]'
+      - name: Verify scheduler and PRD preview
+        run: |
+          python -m pytest -q -m 'not postgres'
+          python -m derai_scheduler preview --topics fixtures/topics.json \
+            --at '2026-11-13T11:37:20+07:00' > "$RUNNER_TEMP/preview.json"
+          python scripts/compare-contracts.py fixtures/expected-prd-jobs.json "$RUNNER_TEMP/preview.json"
+
+  linux:
+    name: Linux Docker and PostgreSQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Start fixture PostgreSQL and build images
+        run: |
+          docker compose --profile dev up -d --wait db
+          docker compose --profile dev --profile test build scheduler-dev test
+      - name: Check first and repeated ticks
+        run: |
+          first=$(docker compose --profile dev run --rm --no-deps scheduler-dev \
+            derai-scheduler tick --at '2026-11-13T11:37:20+07:00')
+          second=$(docker compose --profile dev run --rm --no-deps scheduler-dev \
+            derai-scheduler tick --at '2026-11-13T04:37:20Z')
+          printf '%s\n' "$first" "$second"
+          test "$first" = '{"worker":"collection-scheduler","processed":4}'
+          test "$second" = '{"worker":"collection-scheduler","processed":0}'
+      - name: Test scheduler with PostgreSQL
+        run: docker compose --profile dev --profile test run --rm test
+      - name: Compare stored jobs with PRD fixture
+        run: |
+          mkdir -p artifacts
+          docker compose --profile dev exec -T db psql -X -qAt -v ON_ERROR_STOP=1 \
+            -v 'tick_at=2026-11-13T11:37:20+07:00' -U derai_worker -d derai_scheduler_local \
+            -f - < scripts/export-jobs.sql > artifacts/local-prd-jobs.json
+          python3 scripts/compare-contracts.py fixtures/expected-prd-jobs.json artifacts/local-prd-jobs.json
+      - name: Stop fixture stack
+        if: always()
+        run: docker compose --profile dev --profile test down --volumes
