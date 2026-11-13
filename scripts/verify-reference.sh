@@ -5,6 +5,13 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 repo=$PWD
 legacy=${1:?Usage: bash scripts/verify-reference.sh LEGACY_IMAGE CANDIDATE_IMAGE}
 candidate=${2:?Usage: bash scripts/verify-reference.sh LEGACY_IMAGE CANDIDATE_IMAGE}
+active_script=${3:-}
+legacy_mounts=()
+if [[ -n "$active_script" ]]; then
+    active_script=$(realpath -- "$active_script")
+    [[ -f "$active_script" ]]
+    legacy_mounts=(--mount "type=bind,source=$active_script,target=/fixture/active-scheduler.py,readonly")
+fi
 tick='2026-11-13T11:37:20+07:00'
 utc_tick='2026-11-13T04:37:20Z'
 db_name="derai-reference-pg-$$"
@@ -46,6 +53,7 @@ run() {
         -e "PGPASSWORD=$fixture_pw" -e SOCIAL_COLLECTION_ENABLED=true \
         -e "CONNECTOR_ARTICLE_MAX_PAGES=${MAX_PAGES:-1}" \
         --mount "type=bind,source=$repo/scripts/reference-parity.py,target=/fixture/reference-parity.py,readonly" \
+        "${legacy_mounts[@]}" \
         "$image" "$@"
 }
 
@@ -70,7 +78,13 @@ PY
     sql -d "$database" -c "SELECT CASE WHEN relrowsecurity AND relforcerowsecurity THEN 'RLS active' ELSE 'RLS missing' END FROM pg_class WHERE oid='public.records'::regclass" | grep -Fx 'RLS active'
 done
 
-legacy_tick() { run "$legacy" derai_reference_old /fixture/reference-parity.py legacy-tick --at "$1"; }
+legacy_tick() {
+    if [[ -n "$active_script" ]]; then
+        run "$legacy" derai_reference_old /fixture/active-scheduler.py --once --at "$1"
+    else
+        run "$legacy" derai_reference_old /fixture/reference-parity.py legacy-tick --at "$1"
+    fi
+}
 new_tick() { run "$candidate" derai_reference_new -m derai_scheduler tick --at "$1"; }
 expect() {
     local expected=$1 output
