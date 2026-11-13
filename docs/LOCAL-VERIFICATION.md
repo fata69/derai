@@ -21,4 +21,6 @@ Lab ekstraksi terpisah: Crawl4AI 0.9.5 berhasil mengambil [artikel NASA publik](
 Belum terverifikasi: perbandingan dengan `collection_scheduler_once` lama dan
 uji `ingestion_once` asli sampai job `ready`. Source acuan tidak ada dalam paket
 yang tersedia; lihat [audit source](SOURCE-VERIFICATION.md) dan
-[checklist integrasi](INTEGRATION_CHECKLIST.md). Server belum diubah.
+[checklist integrasi](INTEGRATION_CHECKLIST.md). Ini adalah batas uji laptop;
+hasil integrasi dengan image asli dan pergantian service tercatat di
+[verifikasi server](SERVER-VERIFICATION.md).

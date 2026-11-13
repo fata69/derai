@@ -33,24 +33,12 @@ Untuk menghasilkan snapshot PostgreSQL dan mereproduksi `match=true`,
 `missing=0`, `unexpected=0`, ikuti langkah ekspor sesuai OS di [README](../README.md).
 Snapshot demo diambil dari database fixture dan tidak mengandung data produksi.
 
-## Bukti yang masih dibutuhkan untuk integrasi
+## Integrasi dengan DERAI
 
-Mohon snapshot atau akses baca repo untuk revisi `derai-platform` yang cocok
-dengan container acuan. Agar tes dapat dijalankan di laptop tanpa akses ke
-layanan produksi, sertakan:
-
-- Paket `app/`, khususnya `workers.py` dan `db.py`, beserta file dependensi.
-- Migrasi yang membentuk `public.records`, constraint `uq_scope_kind_idem`,
-  grant role, dan kebijakan RLS aktual.
-- `tests/test_social_ingestion.py` dan fixture yang diimpornya, atau harness
-  resmi yang menjalankan ingestion dengan konektor uji.
-- Contoh konfigurasi dengan nilai dummy; kredensial produksi tidak diperlukan.
-
-Setelah source tersedia, jalankan dua pemeriksaan dari
-[checklist integrasi](INTEGRATION_CHECKLIST.md): bandingkan output scheduler lama
-dan baru pada jam/fixture yang sama, lalu jalankan `ingestion_once` asli untuk
-membuktikan kedua jenis job berpindah dari `queued` ke `ready`. Jangan gunakan
-hasil fixture lokal sebagai bukti bahwa dua pemeriksaan ini sudah lulus.
+Scheduler baru sudah diuji terhadap skrip yang dijalankan service lama dan
+fungsi ingestion asli dari image DERAI. Dua job yang dihasilkan scheduler baru
+berpindah dari `queued` ke `ready` dengan konektor fixture. Hasil, cara uji ulang,
+dan langkah rollback tercatat di [verifikasi server](SERVER-VERIFICATION.md).
 
 Lab opsional untuk mencoba key Gemini/OpenRouter/endpoint kompatibel tersedia
 di [connector-lab](../connector-lab/README.md). Lab belum terhubung ke antrean

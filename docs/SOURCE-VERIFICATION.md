@@ -1,7 +1,9 @@
 # Verifikasi kode acuan DERAI
 
-Tanggal pemeriksaan: 13 November 2026. Pemeriksaan ini hanya membaca workspace
-lokal; tidak mengakses server atau menjalankan layanan DERAI yang sudah ada.
+Pencarian awal pada 13 November 2026 hanya mencakup workspace laptop. Setelah
+akses server tersedia, acuan ditemukan dan diuji; lihat
+[verifikasi server](SERVER-VERIFICATION.md). Catatan pencarian awal di bawah
+menjelaskan mengapa hasil fixture lokal sebelumnya belum membuktikan integrasi.
 
 ## Hasil pencarian lokal
 
@@ -38,7 +40,7 @@ publik berdasarkan nama repo/fungsi juga tidak menemukan source yang dapat
 dipastikan sebagai platform tersebut; ini bukan bukti repo private tidak ada.
 Pemeriksaan tambahan pada repo yang tersedia melalui konektor GitHub (`derai`
 atau `derai-platform` pada nama, dan simbol `collection_scheduler_once`) juga
-tidak mengembalikan hasil. Tidak ada akses ke server yang tercantum di PRD.
+tidak mengembalikan hasil sebelum akses server diberikan.
 
 ## Batas validasi dan pengujian akhir
 
@@ -56,11 +58,9 @@ tidak menggantikan dua pengujian dengan kode platform aktual:
    pemilihan platform, penerusan periode, dan perubahan `queued` menjadi
    `ready` menggunakan worker itu sendiri.
 
-Kedua pengujian ini tetap menunggu snapshot source platform yang sama dengan
-container acuan 13 November 2026. Snapshot ideal memuat direktori `app/`, file
-dependensi, migration skema/RLS, serta `tests/test_social_ingestion.py` beserta
-fixture yang diimpornya. Konfigurasi yang dibagikan cukup nama variabel dan nilai
-demo; credential produksi tidak diperlukan untuk uji lokal.
+Kedua pengujian kemudian dijalankan memakai image yang sama dengan container
+acuan, tanpa menyalin source internal ke repo ini. Compose aktif juga diperiksa
+untuk memastikan entrypoint yang dipakai pada saat pergantian service.
 
 Simulator ingestion yang dibuat terpisah hanya dapat memeriksa bentuk kontrak.
 Simulator tersebut tidak boleh dilaporkan sebagai keberhasilan kompatibilitas

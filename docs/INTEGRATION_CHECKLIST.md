@@ -2,11 +2,14 @@
 
 Dokumen ini memisahkan bukti yang dapat diperoleh dari implementasi lokal dan bukti yang memerlukan kode acuan DERAI. Tidak ada perintah di sini yang menjalankan deployment secara otomatis.
 
+Uji dengan acuan dan cutover pertama tercatat di [verifikasi server](SERVER-VERIFICATION.md).
+
 ## Kode acuan yang diperlukan
 
 PRD menunjuk snapshot container `derai-platform` yang berjalan pada 13 November 2026:
 
 - `app/workers.py`: `collection_scheduler_once`, `build_connector`, `ingestion_once`, dan loop `main`.
+- `scrapper/collection_scheduler.py`: entrypoint scheduler lama yang benar-benar dipasang oleh Compose saat cutover. Periksa `docker inspect` sebelum memilih acuan.
 - `app/db.py` dan `migrations/versions/0001_operational_rls.py`.
 - `compose.yaml`, `compose.external.yaml`, dan `tests/test_social_ingestion.py`.
 
