@@ -9,6 +9,7 @@ tick='2026-11-13T11:37:20+07:00'
 utc_tick='2026-11-13T04:37:20Z'
 db_name="derai-reference-pg-$$"
 fixture_pw=reference-fixture-only
+runtime=${DERAI_TEST_OCI_RUNTIME:-runc}
 work=$(mktemp -d)
 db_container=''
 cleanup() {
@@ -18,8 +19,9 @@ cleanup() {
 }
 trap cleanup EXIT
 docker image inspect "$legacy" "$candidate" >/dev/null
-db_container=$(docker run -d --name "$db_name" --network none \
+db_container=$(docker create --runtime "$runtime" --name "$db_name" --network none \
     --tmpfs /var/lib/postgresql/data:rw,size=512m -e "POSTGRES_PASSWORD=$fixture_pw" postgres:17)
+docker start "$db_container" >/dev/null
 
 for _ in $(seq 1 60); do
     if docker exec "$db_container" pg_isready -h 127.0.0.1 -U postgres >/dev/null; then break; fi
@@ -39,7 +41,7 @@ SQL
 run() {
     local image=$1 database=$2
     shift 2
-    docker run --rm -i --network "container:$db_container" --entrypoint python \
+    docker run --runtime "$runtime" --rm -i --network "container:$db_container" --entrypoint python \
         -e "DATABASE_URL=postgresql+psycopg://derai_worker@127.0.0.1:5432/$database" \
         -e "PGPASSWORD=$fixture_pw" -e SOCIAL_COLLECTION_ENABLED=true \
         -e "CONNECTOR_ARTICLE_MAX_PAGES=${MAX_PAGES:-1}" \
@@ -48,7 +50,7 @@ run() {
 }
 
 for database in derai_reference_old derai_reference_new; do
-    docker run --rm -i --network "container:$db_container" --entrypoint python \
+    docker run --runtime "$runtime" --rm -i --network "container:$db_container" --entrypoint python \
         -e "FIXTURE_DB=$database" -e "PGPASSWORD=$fixture_pw" "$legacy" - <<'PY'
 import os
 import runpy
