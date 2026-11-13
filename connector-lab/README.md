@@ -2,7 +2,19 @@
 
 Alat opsional untuk mencoba **satu URL artikel publik** di laptop. [Crawl4AI 0.9.5](https://github.com/unclecode/crawl4ai/releases/tag/v0.9.5) (Apache-2.0) mengambil halaman lewat Chromium lokal. Teks halaman dikirim ke LLM yang kamu pilih untuk menghasilkan JSON. Tidak perlu key Apify, Crawl4AI Cloud, atau layanan scraping lain. Lab berdiri sendiri: tidak membaca/menulis PostgreSQL dan belum menjadi konektor `ingestion-worker` DERAI.
 
-Untuk checkout baru, buka PowerShell dari folder proyek dan jalankan:
+Di macOS atau Linux, dari root repo:
+
+```sh
+cd connector-lab
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m playwright install chromium
+[ -f .env ] || cp .env.example .env
+```
+
+Di Debian/Ubuntu, jika pustaka sistem Chromium belum tersedia, gunakan `.venv/bin/python -m playwright install --with-deps chromium`. Di server bersama, koordinasikan pemasangan paket sistem dengan admin. Di macOS bisa memakai Chrome yang sudah ada dengan `--browser-channel chrome`.
+
+Di Windows, buka PowerShell dari root repo:
 
 ```powershell
 Set-Location connector-lab
@@ -25,6 +37,8 @@ Isi `LLM_API_KEY` di `.env` dan pilih provider berikut:
 ```powershell
 .\.venv\Scripts\python.exe connector_lab.py 'https://science.nasa.gov/missions/artemis/artemis-2/nasas-artemis-ii-moon-mission-research-continues-on-earth/' --browser-channel chrome
 ```
+
+Untuk macOS/Linux dengan Chromium yang dipasang Playwright, gunakan `.venv/bin/python connector_lab.py '<URL-artikel-publik>'`. Tambah `--crawl-only` untuk tes browser tanpa key.
 
 Ganti URL contoh dengan artikel yang ingin diuji. Program menulis JSON berisi `headline`, `text`, `canonical_url`, dan `published_at` bila model menemukan tanggal yang valid. `canonical_url` diambil dari halaman atau URL akhir hasil crawl; tanggal berasal dari ekstraksi model dan perlu diverifikasi jika dipakai sebagai filter. Halaman yang memerlukan autentikasi, membatasi browser, atau tidak berisi artikel dapat gagal diekstrak. Lab ini tidak melakukan pencarian keyword, scraping medsos, atau pengambilan otomatis berkala.
 

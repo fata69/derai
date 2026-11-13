@@ -25,6 +25,44 @@ Uji Unicode:
 
 Hasilnya dua job dengan query `Straße`; `STRASSE` terdeduplikasi. Preview dapat memakai `id` dan `created_at` baru setiap kali; kedua field tersebut tidak dipakai untuk perbandingan deterministik.
 
+## macOS dan Linux (tanpa PowerShell)
+
+Gunakan Docker Desktop di Mac, atau Docker Engine dengan plugin Compose v2 di Linux. Jalankan dari root repo. Seluruh scheduler dan tes PostgreSQL berjalan di container; Python di host tidak diperlukan.
+
+```sh
+docker compose --profile dev up -d --wait db
+docker compose --profile dev run --rm --build --no-deps scheduler-dev \
+  derai-scheduler tick --at '2026-11-13T11:37:20+07:00'
+docker compose --profile dev run --rm --no-deps scheduler-dev \
+  derai-scheduler tick --at '2026-11-13T04:37:20Z'
+docker compose --profile dev --profile test run --rm --build test
+```
+
+Pada volume demo baru, dua tick itu melaporkan `processed=4`, lalu `processed=0`. Tes memakai database fixture yang terpisah di container `db`. Image dasar menyediakan `linux/arm64` dan `linux/amd64`; tidak perlu memaksa `platform: linux/amd64` pada Mac Apple Silicon. Jika port lokal `55432` sudah dipakai, set `DERAI_DEV_DB_PORT=55433` di `.env` atau ekspor di shell sebelum menjalankan Compose. Tes di dalam container tidak memakai port host.
+
+Untuk memeriksa job yang tersimpan terhadap fixture PRD, jalankan sebelum menghentikan stack:
+
+```sh
+mkdir -p artifacts
+docker compose --profile dev exec -T db psql -X -qAt -v ON_ERROR_STOP=1 \
+  -v 'tick_at=2026-11-13T11:37:20+07:00' -U derai_worker -d derai_scheduler_local \
+  -f - < scripts/export-jobs.sql > artifacts/local-prd-jobs.json
+docker compose --profile dev --profile test run --rm \
+  -v "$PWD/scripts/compare-contracts.py:/contract/compare.py:ro" \
+  -v "$PWD/fixtures/expected-prd-jobs.json:/contract/expected.json:ro" \
+  -v "$PWD/artifacts/local-prd-jobs.json:/contract/actual.json:ro" \
+  test python /contract/compare.py /contract/expected.json /contract/actual.json
+```
+
+Untuk menjalankan scheduler terus menerus atau menghentikan stack demo sambil menyimpan volume:
+
+```sh
+docker compose --profile dev up -d --build scheduler-dev
+docker compose logs -f scheduler-dev
+# Ctrl+C menutup tampilan log; hentikan stack dengan:
+docker compose --profile dev --profile test down
+```
+
 ## Demo PostgreSQL lokal
 
 Prasyarat tambahan: Docker Desktop berjalan dengan Linux containers.
@@ -90,7 +128,9 @@ docker compose --profile external up --build -d scheduler
 docker compose logs -f scheduler
 ```
 
-Service ini tidak menjalankan database fixture. Alamat `localhost` di dalam container menunjuk container itu sendiri; untuk PostgreSQL di laptop Windows gunakan `host.docker.internal`, atau alamat server database yang dapat dijangkau container.
+Service ini tidak menjalankan database fixture. Alamat `localhost` di dalam container menunjuk container itu sendiri; jika PostgreSQL berjalan di host Docker Desktop (Windows/macOS), gunakan `host.docker.internal`.
+
+Pada Linux, gunakan alamat DNS/IP PostgreSQL yang memang dapat dijangkau dari jaringan container. Untuk uji kontrak di server gunakan profil `dev` dan `test` dengan nama proyek Compose terpisah (`docker compose -p derai-scheduler-check ...`) dan port fixture bebas. Profil `external` menulis ke database yang dikonfigurasi: jalankan hanya terhadap database uji atau setelah persetujuan perpindahan layanan sesuai [checklist integrasi](docs/INTEGRATION_CHECKLIST.md).
 
 ## Verifikasi
 

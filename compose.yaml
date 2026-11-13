@@ -15,7 +15,7 @@ services:
       POSTGRES_PASSWORD: derai_local_admin
       POSTGRES_DB: derai_scheduler_local
     ports:
-      - "127.0.0.1:55432:5432"
+      - "127.0.0.1:${DERAI_DEV_DB_PORT:-55432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./scripts/init-local-db.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
@@ -49,6 +49,21 @@ services:
       WORKER_INTERVAL: ${WORKER_INTERVAL-60}
       SOCIAL_COLLECTION_ENABLED: ${SOCIAL_COLLECTION_ENABLED-true}
       CONNECTOR_ARTICLE_MAX_PAGES: ${CONNECTOR_ARTICLE_MAX_PAGES-1}
+
+  test:
+    profiles: [test]
+    build:
+      context: .
+      target: tests
+    init: true
+    # Join only the fixture database's network namespace so the test guard
+    # still requires loopback. No external DATABASE_URL is passed to tests.
+    network_mode: service:db
+    environment:
+      TEST_DATABASE_URL: postgresql+psycopg://derai_local_admin:derai_local_admin@127.0.0.1:5432/derai_scheduler_test
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   postgres-data:

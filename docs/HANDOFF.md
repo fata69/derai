@@ -4,16 +4,16 @@ Implementasi baru menjalankan tick dengan APScheduler, membaca `public.records`,
 dan memasukkan job `queued` untuk media sosial dan berita. Input, payload,
 format jam, kunci deduplikasi, dan transaksi mengikuti PRD 13 November 2026.
 
-## Reproduksi di Windows dengan Docker Desktop
+## Reproduksi di MacBook, Linux, atau Windows
 
-Untuk checkout baru, buka PowerShell dan jalankan:
+Untuk checkout baru, jalankan:
 
-```powershell
+```sh
 git clone https://github.com/fata69/derai.git
-Set-Location derai
+cd derai
 ```
 
-Dari root repo (atau dari folder hasil ekstrak ZIP), jalankan:
+Di macOS/Linux, ikuti [jalur Docker Compose](../README.md#macos-dan-linux-tanpa-powershell). Di Windows, jalankan helper berikut dari PowerShell:
 
 ```powershell
 .\scripts\local.ps1 Setup
@@ -28,7 +28,7 @@ Cara menjalankan uji lengkap dan menghentikan layanan ada di [README](../README.
 
 Repo memuat [contoh output yang diharapkan](../fixtures/expected-prd-jobs.json).
 Untuk menghasilkan snapshot PostgreSQL dan mereproduksi `match=true`,
-`missing=0`, `unexpected=0`, ikuti perintah `Snapshot` di [README](../README.md).
+`missing=0`, `unexpected=0`, ikuti langkah ekspor sesuai OS di [README](../README.md).
 Snapshot demo diambil dari database fixture dan tidak mengandung data produksi.
 
 ## Bukti yang masih dibutuhkan untuk integrasi

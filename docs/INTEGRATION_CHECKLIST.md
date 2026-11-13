@@ -32,6 +32,19 @@ Gunakan [export-jobs.sql](../scripts/export-jobs.sql) dengan `psql -X -qAt -v ON
 
 Simulator yang hanya menyalin payload atau mengubah status sendiri bukan bukti kompatibilitas worker acuan. Jangan menyatakan kriteria ini lulus tanpa menjalankan worker aslinya.
 
+## Uji scheduler saja di server Linux
+
+Jalankan dari checkout repo ini. Pilih nama proyek Compose khusus uji dan port loopback yang kosong; contoh di bawah menggunakan `55433`. Database dan role pada perintah ini berasal dari fixture Compose.
+
+```sh
+export DERAI_DEV_DB_PORT=55433
+docker compose -p derai-scheduler-check --profile dev up -d --wait db
+docker compose -p derai-scheduler-check --profile dev --profile test run --rm --build test
+docker compose -p derai-scheduler-check --profile dev --profile test down
+```
+
+Perintah `down` mempertahankan volume fixture. Tes memakai `derai_scheduler_test` dan tidak memerlukan kredensial atau akses ke PostgreSQL DERAI. Untuk demonstrasi tick `4 → 0`, gunakan dua perintah tick di [README](../README.md#macos-dan-linux-tanpa-powershell) dengan nama proyek yang sama.
+
 ## Perpindahan service setelah integrasi lulus
 
 1. Siapkan konfigurasi scheduler baru pada database DERAI hasil migrasi; pastikan role worker melihat semua scope yang dilayani dan boleh menulis job sesuai RLS.

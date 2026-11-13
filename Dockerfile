@@ -1,4 +1,4 @@
-FROM python:3.14-slim
+FROM python:3.14-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -10,5 +10,12 @@ COPY src ./src
 RUN pip install --no-cache-dir -c constraints.txt . \
     && useradd --uid 10001 --create-home scheduler
 
+FROM base AS tests
+RUN pip install --no-cache-dir -c constraints.txt '.[dev]'
+COPY tests ./tests
+USER scheduler
+CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider"]
+
+FROM base AS runtime
 USER scheduler
 CMD ["derai-scheduler", "run"]
