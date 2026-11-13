@@ -1,0 +1,13 @@
+# Use last with the parent DERAI Compose files; retains their DB connection and network.
+services:
+  collection-scheduler:
+    build: !override
+      context: ./derai-collection-scheduler
+      dockerfile: Dockerfile
+      target: runtime
+    image: derai-collection-scheduler-fata:server
+    command: [derai-scheduler, run]
+    volumes: !reset []
+    runtime: runc
+    init: true
+    stop_grace_period: 30s

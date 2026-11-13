@@ -160,6 +160,18 @@ def test_keywords_added_during_hour_create_only_new_pairs() -> None:
     assert len(store.jobs) == 4
 
 
+def test_keyword_reordering_keeps_insert_lock_order_and_first_spelling() -> None:
+    orders = [["TNI", "Indonesia", "tni"], ["indonesia", "tni", "TNI"]]
+    stores = [MemoryStore([topic(keywords=keywords)]) for keywords in orders]
+    for store in stores:
+        assert SchedulerService(store, SETTINGS).tick(now=TICK) == 4
+
+    first, second = ([job.idempotency_key for job in store.jobs] for store in stores)
+    assert first == second == sorted(first)
+    assert {json.loads(job.data)["query"] for job in stores[0].jobs} == {"TNI", "Indonesia"}
+    assert {json.loads(job.data)["query"] for job in stores[1].jobs} == {"tni", "indonesia"}
+
+
 def test_skipped_hours_are_not_backfilled() -> None:
     store = MemoryStore([topic(keywords=["TNI"])])
     service = SchedulerService(store, SETTINGS)
@@ -187,12 +199,16 @@ def test_each_tenant_workspace_and_topic_keeps_its_own_jobs() -> None:
 
 def test_tick_uses_start_hour_even_when_writes_cross_hour_boundary() -> None:
     start = datetime.fromisoformat("2026-11-13T04:59:59+00:00")
-    write = datetime.fromisoformat("2026-11-13T05:00:01+00:00")
-    readings = iter([start, write, write])
+    first_write = datetime.fromisoformat("2026-11-13T05:00:01+00:00")
+    second_write = first_write + timedelta(seconds=1)
+    readings = iter([start, first_write, second_write])
     store = MemoryStore([topic(keywords=["TNI"])])
     scheduler = SchedulerService(store, SETTINGS, clock=lambda: next(readings))
     assert scheduler.tick() == 2
     assert {json.loads(job.data)["scheduled_for"] for job in store.jobs} == {
         "2026-11-13T04:00:00+00:00"
     }
-    assert {datetime.fromisoformat(job.created_at) for job in store.jobs} == {write}
+    assert [datetime.fromisoformat(job.created_at) for job in store.jobs] == [
+        first_write,
+        second_write,
+    ]

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
+from dataclasses import replace
 from datetime import datetime
 from typing import Protocol
 
 from .config import Settings
-from .domain import Job, Topic, build_jobs, utc_now
+from .domain import Job, Topic, build_jobs, utc_iso, utc_now
 
 
 class Transaction(Protocol):
@@ -38,8 +39,13 @@ class SchedulerService:
         # anywhere rolls back jobs already inserted for earlier topics.
         with self.store.transaction() as transaction:
             for topic in transaction.fetch_topics():
-                for job in build_jobs(
-                    topic, tick_time, self.settings.article_max_pages, clock=self.clock
-                ):
-                    processed += int(transaction.insert_job(job))
+                jobs = build_jobs(
+                    topic, tick_time, self.settings.article_max_pages, clock=lambda: tick_time
+                )
+                # Overlapping ticks may see different keyword order. Take
+                # unique-key locks in the same order and stamp each actual insert.
+                for job in sorted(jobs, key=lambda candidate: candidate.idempotency_key):
+                    processed += int(
+                        transaction.insert_job(replace(job, created_at=utc_iso(self.clock())))
+                    )
         return processed
