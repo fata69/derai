@@ -2,6 +2,35 @@
 
 Alat opsional untuk mencoba **satu URL artikel publik** di laptop. [Crawl4AI 0.9.5](https://github.com/unclecode/crawl4ai/releases/tag/v0.9.5) (Apache-2.0) mengambil halaman lewat Chromium lokal. Teks halaman dikirim ke LLM yang kamu pilih untuk menghasilkan JSON. Tidak perlu key Apify, Crawl4AI Cloud, atau layanan scraping lain. Lab berdiri sendiri: tidak membaca/menulis PostgreSQL dan belum menjadi konektor `ingestion-worker` DERAI.
 
+## Linux server: Docker
+
+Jalankan dari folder `connector-lab`. Image memasang Chromium dan pustaka sistem di dalam container. Untuk memeriksa crawler tanpa API key:
+
+```sh
+docker build -t derai-connector-lab:local .
+article_url='https://science.nasa.gov/missions/artemis/artemis-2/nasas-artemis-ii-moon-mission-research-continues-on-earth/'
+docker run --runtime runc --rm --init --shm-size 256m \
+  --cap-drop ALL --security-opt no-new-privileges \
+  derai-connector-lab:local --crawl-only "$article_url"
+```
+
+Untuk uji LLM, buat `.env` dengan izin baca hanya untuk akunmu, isi `LLM_API_KEY`, lalu jalankan perintah kedua. Gemini sudah menjadi default pada `.env.example`.
+
+```sh
+[ -f .env ] || (umask 077; cp .env.example .env)
+chmod 600 .env
+# Isi LLM_API_KEY dengan editor.
+docker run --runtime runc --rm --init --shm-size 256m \
+  --cap-drop ALL --security-opt no-new-privileges \
+  --user "$(id -u):$(id -g)" \
+  --mount "type=bind,src=$PWD/.env,dst=/run/derai/llm.env,readonly" \
+  derai-connector-lab:local "$article_url" --env-file /run/derai/llm.env
+```
+
+File key dibaca dari mount read-only dan tidak masuk ke image. Gunakan akun host non-root. `--runtime runc` memilih runtime tanpa GPU pada server; hilangkan opsi itu jika Docker lokal tidak menyediakan runtime bernama `runc`. Lab mengikuti mode headless bawaan Crawl4AI, yang tidak mengaktifkan sandbox Chromium; gunakan URL publik yang kamu percayai dan jangan mengekspos lab sebagai endpoint bagi pengguna lain. Lihat [konfigurasi Docker Playwright](https://playwright.dev/python/docs/docker#crawling-and-scraping) untuk sandbox Chromium.
+
+## Instalasi dengan Python di laptop
+
 Di macOS atau Linux, dari root repo:
 
 ```sh
