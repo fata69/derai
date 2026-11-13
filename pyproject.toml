@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "derai-collection-scheduler"
+version = "0.1.0"
+description = "PostgreSQL collection scheduler compatible with the DERAI records contract."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "APScheduler==3.11.3",
+  "SQLAlchemy>=2.0.36,<3",
+  "psycopg[binary]>=3.2,<4",
+  "python-dotenv>=1.0,<2",
+  "tzdata>=2024.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<10", "ruff>=0.9,<1"]
+
+[project.scripts]
+derai-scheduler = "derai_scheduler.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/derai_scheduler"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["postgres: integration tests against a disposable local PostgreSQL database"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
