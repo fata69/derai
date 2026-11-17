@@ -40,6 +40,10 @@ fungsi ingestion asli dari image DERAI. Dua job yang dihasilkan scheduler baru
 berpindah dari `queued` ke `ready` dengan konektor fixture. Hasil, cara uji ulang,
 dan langkah rollback tercatat di [verifikasi server](SERVER-VERIFICATION.md).
 
-Lab opsional untuk mencoba key Gemini/OpenRouter/endpoint kompatibel tersedia
-di [connector-lab](../connector-lab/README.md). Lab belum terhubung ke antrean
-atau worker asli. Key dan `.env` pribadi tidak ikut di repo.
+Connector URL untuk Gemini/OpenRouter/endpoint kompatibel tersedia
+di [connector-lab](../connector-lab/README.md). Kontrak persist dan pemanggilan
+cron ada di [handoff normalized](../connector-lab/HANDOFF-NORMALIZED.md).
+Engine berita baru sudah menggantikan engine lama pada gateway; hasil uji,
+riwayat yang dipertahankan, dan rollback ada di
+[verifikasi scraper](ARTICLE-SCRAPER-VERIFICATION.md). Key dan `.env` pribadi
+tidak ikut di repo.

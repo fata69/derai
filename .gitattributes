@@ -1,1 +1,3 @@
 * text=auto eol=lf
+# Unified diff context keeps its leading marker and the upstream Go tabs.
+article-scraper/discovery.patch -whitespace

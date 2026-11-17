@@ -6,6 +6,8 @@ Scheduler membaca topik, lalu membuat job `queued` di `public.records`. API key 
 
 Untuk mencoba ekstraksi dari satu URL artikel dengan API key sendiri, buka [connector-lab](connector-lab/README.md). Lab memakai Chromium lokal, tanpa akun Apify atau Crawl4AI Cloud. Lab berjalan terpisah dari antrean DERAI; job demo di PostgreSQL tidak otomatis memanggil LLM.
 
+Pengganti engine berita dan kontrak HTTP tersedia di [article-scraper](article-scraper/README.md). Pengiriman URL ke backend mengikuti [handoff normalized ingest](connector-lab/HANDOFF-NORMALIZED.md). Hasil uji dan perpindahan engine aktif pada 17 November 2026 ada di [verifikasi scraper](docs/ARTICLE-SCRAPER-VERIFICATION.md).
+
 ## Coba di laptop tanpa database
 
 Prasyarat: Python 3.12 atau lebih baru. Buka PowerShell dari folder proyek:

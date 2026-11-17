@@ -13,6 +13,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 \
     && rm -rf /var/lib/apt/lists/* \
     && chmod -R a+rX /opt/playwright
 
-COPY connector_lab.py .
+COPY connector_lab.py derai_ingest.py x_post.py ./
 USER 10001:10001
 ENTRYPOINT ["python", "/app/connector_lab.py"]

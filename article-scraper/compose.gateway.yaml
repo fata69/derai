@@ -1,0 +1,14 @@
+# Enable only on the private interface used by the existing DERAI gateway.
+services:
+  api:
+    ports:
+      - "${ARTICLE_GATEWAY_BIND_HOST:?set private IP}:${ARTICLE_PORT:-18011}:8010"
+    networks:
+      default: {}
+      derai:
+        aliases: [derai-article-engine]
+
+networks:
+  derai:
+    external: true
+    name: ${DERAI_PLATFORM_NETWORK:-derai-platform_default}

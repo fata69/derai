@@ -1,0 +1,102 @@
+name: derai-article-scraper
+
+x-worker-build: &worker-build
+  context: .runtime/upstream
+  dockerfile: Dockerfile.worker
+
+services:
+  db:
+    image: postgres:17-alpine
+    runtime: ${ARTICLE_OCI_RUNTIME:-runc}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: article_scraper
+      POSTGRES_USER: scraper_migrator
+      POSTGRES_PASSWORD: ${ARTICLE_DB_MIGRATOR_PASSWORD:?jalankan prepare.py --init-env}
+      ARTICLE_DB_API_PASSWORD: ${ARTICLE_DB_API_PASSWORD:?jalankan prepare.py --init-env}
+      ARTICLE_DB_WORKER_PASSWORD: ${ARTICLE_DB_WORKER_PASSWORD:?jalankan prepare.py --init-env}
+    volumes:
+      - article-jobs:/var/lib/postgresql/data
+      - ./db-init.sh:/docker-entrypoint-initdb.d/010-article-roles.sh:ro
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, scraper_migrator, -d, article_scraper]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build: *worker-build
+    image: derai-article-scraper-worker:8596ede
+    runtime: ${ARTICLE_OCI_RUNTIME:-runc}
+    entrypoint: [migrate]
+    environment:
+      DATABASE_URL: postgres://scraper_migrator:${ARTICLE_DB_MIGRATOR_PASSWORD}@db:5432/article_scraper?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .runtime/upstream
+      dockerfile: Dockerfile.middleware
+    runtime: ${ARTICLE_OCI_RUNTIME:-runc}
+    restart: unless-stopped
+    ports:
+      - "${ARTICLE_BIND_HOST:-127.0.0.1}:${ARTICLE_PORT:-18011}:8010"
+    environment:
+      DATABASE_URL: postgres://scraper_api:${ARTICLE_DB_API_PASSWORD}@db:5432/article_scraper?sslmode=disable
+      REQUIRE_API_KEY: "true"
+      SCRAPER_API_KEY: ${SCRAPER_API_KEY:?jalankan prepare.py --init-env}
+      ALLOWED_DOMAINS: ${ALLOWED_DOMAINS:?salin .env.example dengan prepare.py --init-env}
+      WORKER_COUNT: ${ARTICLE_WORKER_COUNT:-3}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build: *worker-build
+    image: derai-article-scraper-worker:8596ede
+    runtime: ${ARTICLE_OCI_RUNTIME:-runc}
+    init: true
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://scraper_worker:${ARTICLE_DB_WORKER_PASSWORD}@db:5432/article_scraper?sslmode=disable
+      ARTICLE_DISCOVERY_URL: http://discovery:8731/search
+      ALLOWED_DOMAINS: ${ALLOWED_DOMAINS:?salin .env.example dengan prepare.py --init-env}
+      WORKER_COUNT: ${ARTICLE_WORKER_COUNT:-3}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      discovery:
+        condition: service_healthy
+    stop_grace_period: 2m
+    healthcheck:
+      test: [CMD, workerhealth]
+      interval: 10s
+      timeout: 5s
+      retries: 4
+
+  discovery:
+    build: .
+    runtime: ${ARTICLE_OCI_RUNTIME:-runc}
+    restart: unless-stopped
+    environment:
+      DISCOVERY_CACHE_PATH: /var/lib/discovery/index.sqlite3
+      DISCOVERY_FEEDS: ${DISCOVERY_FEEDS:?salin .env.example dengan prepare.py --init-env}
+      ALLOWED_DOMAINS: ${ALLOWED_DOMAINS:?salin .env.example dengan prepare.py --init-env}
+      DISCOVERY_MODE: ${DISCOVERY_MODE:-rss}
+      DISCOVERY_LLM_PROVIDER: ${DISCOVERY_LLM_PROVIDER:-none}
+      DISCOVERY_LLM_MODEL: ${DISCOVERY_LLM_MODEL:-}
+      DISCOVERY_LLM_API_KEY: ${DISCOVERY_LLM_API_KEY:-}
+      DISCOVERY_LLM_BASE_URL: ${DISCOVERY_LLM_BASE_URL:-}
+    volumes:
+      - article-index:/var/lib/discovery
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8731/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  article-jobs:
+  article-index:

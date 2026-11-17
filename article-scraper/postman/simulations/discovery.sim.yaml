@@ -1,0 +1,7 @@
+simulation: article-discovery
+routing: path
+mocks:
+  - name: article-sources
+    routeKey: sources
+    origin: [sources.example]
+    path: postman/mocks/sources/config.yaml

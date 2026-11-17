@@ -1,0 +1,6 @@
+version: 1
+name: article-sources
+description: Local RSS and OpenAI-compatible HTTP fixtures. No live provider data.
+origin: sources.example
+interceptRequests: true
+mockSrc: default.js

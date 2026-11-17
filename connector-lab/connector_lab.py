@@ -1,4 +1,4 @@
-"""Standalone, one-URL public article extraction lab. No DERAI DB access."""
+"""Extract one public article or X Post and optionally deliver it to DERAI."""
 
 from __future__ import annotations
 
@@ -19,9 +19,13 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 from dotenv import dotenv_values
 
+from derai_ingest import IngestError, persist_to_derai
+from x_post import PostError, extract_post, is_x_url
+
 BASE_URLS = {
     "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
     "openrouter": "https://openrouter.ai/api/v1",
+    "openai": "https://api.openai.com/v1",
 }
 MAX_MARKDOWN = 28_000
 
@@ -37,6 +41,13 @@ class LabError(RuntimeError):
     """An error message safe to show without provider response bodies or keys."""
 
 
+def read_settings(env_file):
+    try:
+        return {**dotenv_values(env_file, interpolate=False), **os.environ}
+    except (OSError, UnicodeError):
+        raise LabError("File .env lab tidak dapat dibaca sebagai UTF-8.") from None
+
+
 @dataclass(frozen=True)
 class Settings:
     provider: str
@@ -46,17 +57,14 @@ class Settings:
 
     @classmethod
     def load(cls, env_file: Path) -> Settings:
-        try:
-            values = {**dotenv_values(env_file, interpolate=False), **os.environ}
-        except (OSError, UnicodeError):
-            raise LabError("File .env lab tidak dapat dibaca sebagai UTF-8.") from None
+        values = read_settings(env_file)
 
         def get(name: str) -> str:
             return (values.get(name) or "").strip()
 
         provider = get("LLM_PROVIDER").lower()
         if provider not in {*BASE_URLS, "compatible"}:
-            raise LabError("Isi LLM_PROVIDER dengan gemini, openrouter, atau compatible.")
+            raise LabError("Isi LLM_PROVIDER dengan gemini, openrouter, openai, atau compatible.")
         # A named provider always uses its official host; override only in compatible mode.
         base_url = (BASE_URLS.get(provider) or get("LLM_BASE_URL")).rstrip("/")
         try:
@@ -239,9 +247,28 @@ def extract_article(client: httpx.Client, settings: Settings, page: Page) -> Art
     return parse_article(content, page.canonical_url)
 
 
+def extract_engine_article(client, values, url):
+    base = (values.get("ARTICLE_ENGINE_URL") or "").strip().rstrip("/")
+    key = (values.get("SCRAPER_API_KEY") or "").strip()
+    if not base or not key:
+        raise LabError("Persist berita memerlukan ARTICLE_ENGINE_URL dan SCRAPER_API_KEY")
+    try:
+        response = client.post(base + "/v1/articles/scrape", json={"url": url},
+                               headers={"X-API-Key": key})
+        response.raise_for_status()
+        article = response.json()
+        if not isinstance(article, dict) or article.get("source_url") != url.strip():
+            raise LabError("Engine berita tidak mengonfirmasi URL sumber")
+        return article
+    except httpx.HTTPStatusError as exc:
+        raise LabError(f"Engine berita mengembalikan HTTP {exc.response.status_code}") from None
+    except (httpx.RequestError, ValueError):
+        raise LabError("Engine berita tidak tersedia atau respons tidak valid") from None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("url", help="URL publik artikel berita")
+    parser.add_argument("url", help="URL publik artikel berita atau posting X")
     parser.add_argument("--env-file", type=Path, default=Path(__file__).with_name(".env"))
     parser.add_argument(
         "--browser-channel", choices=["chromium", "chrome", "msedge"], default="chromium"
@@ -249,26 +276,50 @@ def main() -> int:
     parser.add_argument(
         "--crawl-only", action="store_true", help="ambil halaman tanpa memanggil LLM"
     )
+    parser.add_argument("--persist", action="store_true", help="kirim ke API DERAI dan cetak konfirmasi")
+    parser.add_argument("--topic-id", help="ID topik DERAI")
+    parser.add_argument("--tenant-id", help="ID tenant topik")
+    parser.add_argument("--workspace-id", help="ID workspace topik")
+    parser.add_argument("--idempotency-key", help="Kunci pengiriman milik scheduler")
     args = parser.parse_args()
+    if args.persist and (args.crawl_only or not all(
+        (args.topic_id, args.tenant_id, args.workspace_id, args.idempotency_key)
+    )):
+        parser.error("--persist memerlukan --topic-id, --tenant-id, --workspace-id, dan --idempotency-key")
     try:
-        settings = None if args.crawl_only else Settings.load(args.env_file)
-        with redirect_stdout(sys.stderr):
-            page = asyncio.run(crawl_article(args.url, browser_channel=args.browser_channel))
-        result: Page | Article = page
-        if settings is not None:
-            with httpx.Client(timeout=90.0, follow_redirects=False, trust_env=False) as client:
-                result = extract_article(client, settings, page)
+        if is_x_url(args.url):
+            with httpx.Client(timeout=25.0, follow_redirects=False, trust_env=False) as client:
+                result = extract_post(client, args.url)
+            platform = "x"
+        elif args.persist:
+            values = read_settings(args.env_file)
+            with httpx.Client(timeout=45.0, follow_redirects=False, trust_env=False) as client:
+                result = extract_engine_article(client, values, args.url)
+            platform = "online_news"
+        else:
+            settings = None if args.crawl_only else Settings.load(args.env_file)
+            with redirect_stdout(sys.stderr):
+                page = asyncio.run(crawl_article(args.url, browser_channel=args.browser_channel))
+            if settings is not None:
+                with httpx.Client(timeout=90.0, follow_redirects=False, trust_env=False) as client:
+                    result = asdict(extract_article(client, settings, page))
+            else:
+                result = asdict(page)
+        if args.persist:
+            result = persist_to_derai(read_settings(args.env_file), topic_id=args.topic_id,
+                                      tenant_id=args.tenant_id, workspace_id=args.workspace_id,
+                                      platform=platform, content=result, idempotency_key=args.idempotency_key)
     except ImportError:
         print(
             "Dependency lab belum terpasang. Jalankan pip install -r requirements.txt.",
             file=sys.stderr,
         )
         return 1
-    except LabError as exc:
+    except (LabError, IngestError, PostError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
     # Keep output valid on redirected Windows consoles whose encoding may be CP1252.
-    print(json.dumps(asdict(result), ensure_ascii=True, indent=2))
+    print(json.dumps(result, ensure_ascii=True, indent=None if args.persist else 2), flush=True)
     return 0
 
 

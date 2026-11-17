@@ -2,3 +2,5 @@
 !Dockerfile
 !requirements.txt
 !connector_lab.py
+!derai_ingest.py
+!x_post.py

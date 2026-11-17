@@ -1,0 +1,77 @@
+diff --git a/cmd/worker/main.go b/cmd/worker/main.go
+index 4ceb8ffdf7222ed4b642eeb23a27f58012655da8..ee368af8962a16d2b63c5d48a61d6fff5b30c47b 100644
+--- a/cmd/worker/main.go
++++ b/cmd/worker/main.go
+@@ -51,7 +51,7 @@ func main() {
+ 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+ 	a := app{cfg: cfg, store: db, log: logger, workCtx: context.Background(), extractor: extractor.Extractor{MinWordCount: cfg.MinWordCount}}
+ 	a.fetcher = &fetcher.Fetcher{Policy: security.Policy{AllowHTTP: cfg.AllowHTTP, AllowedDomains: cfg.AllowedDomains}, Limiter: db, Timeout: cfg.HTTPTimeout, MaxBytes: cfg.MaxHTMLBytes, MaxRedirects: cfg.MaxRedirects, UserAgent: cfg.UserAgent, DomainDelay: cfg.DomainDelay, RespectRobots: cfg.RespectRobots, RobotsFailClosed: cfg.RobotsFailClosed}
+-	a.search = searcher.Service{Config: cfg, DB: db.DB, Policy: security.Policy{AllowHTTP: cfg.AllowHTTP, AllowedDomains: cfg.AllowedDomains}}
++	a.search = searcher.Service{Config: cfg, DB: db.DB, ProviderURL: os.Getenv("ARTICLE_DISCOVERY_URL"), Policy: security.Policy{AllowHTTP: cfg.AllowHTTP, AllowedDomains: cfg.AllowedDomains}}
+ 	var wg sync.WaitGroup
+ 	wg.Add(1)
+ 	go func() {
+diff --git a/internal/search/search.go b/internal/search/search.go
+index 45cd42fe072e388a69a3a013fe29f15e1cc80972..6fb02204ee7ed509e09d33135ba511fa1638fc32 100644
+--- a/internal/search/search.go
++++ b/internal/search/search.go
+@@ -86,8 +86,8 @@ func (s Service) Process(ctx context.Context, raw []byte, continuation bool) (Re
+ 	if err := normalizeDateRange(&req, time.Now()); err != nil {
+ 		return Result{}, bad(err.Error())
+ 	}
+-	if strings.TrimSpace(s.Config.SerpAPIKey) == "" {
+-		return Result{}, &domain.WorkerError{Code: "fetch_failed", Detail: "SERPAPI_API_KEY belum dikonfigurasi", Retryable: false}
++	if strings.TrimSpace(s.ProviderURL) == "" {
++		return Result{}, &domain.WorkerError{Code: "fetch_failed", Detail: "ARTICLE_DISCOVERY_URL belum dikonfigurasi", Retryable: false}
+ 	}
+ 	if len(s.Config.AllowedDomains) == 0 {
+ 		return Result{}, bad("ALLOWED_DOMAINS wajib diisi untuk pencarian berita")
+@@ -299,37 +299,40 @@ func (s Service) discoverPage(ctx context.Context, query string, offset int, sta
+ }
+ 
+ func (s Service) fetchPage(ctx context.Context, query string, offset int, start, end *time.Time) (map[string]any, error) {
+-	params := url.Values{"engine": {"google"}, "q": {query}, "gl": {"id"}, "hl": {"id"}, "start": {fmt.Sprint(offset)}, "api_key": {s.Config.SerpAPIKey}}
++	params := url.Values{"engine": {"google"}, "q": {query}, "gl": {"id"}, "hl": {"id"}, "start": {fmt.Sprint(offset)}}
+ 	if start != nil && end != nil {
+ 		params.Set("tbs", fmt.Sprintf("cdr:1,cd_min:%s,cd_max:%s", start.Format("01/02/2006"), end.Format("01/02/2006")))
+ 	}
+ 	base := s.ProviderURL
+ 	if base == "" {
+-		base = "https://serpapi.com/search.json"
++		return nil, &domain.WorkerError{Code: "fetch_failed", Detail: "Discovery belum dikonfigurasi", Retryable: false}
++	}
++	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"?"+params.Encode(), nil)
++	if err != nil {
++		return nil, &domain.WorkerError{Code: "fetch_failed", Detail: "URL discovery tidak valid", Retryable: false}
+ 	}
+-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, base+"?"+params.Encode(), nil)
+ 	client := s.Client
+ 	if client == nil {
+ 		client = &http.Client{Timeout: 45 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+ 	}
+ 	resp, err := client.Do(req)
+ 	if err != nil {
+-		return nil, &domain.WorkerError{Code: "fetch_failed", Detail: "SerpAPI tidak dapat diakses atau respons tidak valid.", Retryable: true}
++		return nil, &domain.WorkerError{Code: "fetch_failed", Detail: "Discovery tidak dapat diakses atau respons tidak valid.", Retryable: true}
+ 	}
+ 	defer resp.Body.Close()
+ 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+-		return nil, &domain.WorkerError{Code: "fetch_failed", Detail: "Pencarian SerpAPI gagal; periksa akun dan kuota.", Retryable: resp.StatusCode >= 500}
++		return nil, &domain.WorkerError{Code: "fetch_failed", Detail: "Pencarian discovery gagal.", Retryable: resp.StatusCode >= 500}
+ 	}
+ 	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024+1))
+ 	if err != nil || len(body) > 2*1024*1024 {
+-		return nil, &domain.WorkerError{Code: "fetch_failed", Detail: "SerpAPI tidak dapat diakses atau respons tidak valid.", Retryable: true}
++		return nil, &domain.WorkerError{Code: "fetch_failed", Detail: "Discovery tidak dapat diakses atau respons tidak valid.", Retryable: true}
+ 	}
+ 	var payload map[string]any
+ 	if json.Unmarshal(body, &payload) != nil {
+-		return nil, &domain.WorkerError{Code: "fetch_failed", Detail: "SerpAPI tidak dapat diakses atau respons tidak valid.", Retryable: true}
++		return nil, &domain.WorkerError{Code: "fetch_failed", Detail: "Discovery tidak dapat diakses atau respons tidak valid.", Retryable: true}
+ 	}
+ 	if payload["error"] != nil {
+-		return nil, &domain.WorkerError{Code: "fetch_failed", Detail: "SerpAPI mengembalikan error; periksa akun dan kuota.", Retryable: false}
++		return nil, &domain.WorkerError{Code: "fetch_failed", Detail: "Discovery mengembalikan error.", Retryable: false}
+ 	}
+ 	if _, ok := payload["organic_results"].([]any); !ok {
+ 		payload["organic_results"] = []any{}

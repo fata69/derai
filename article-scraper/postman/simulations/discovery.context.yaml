@@ -1,0 +1,16 @@
+purpose:
+  stands_in_for: Publisher feed and an OpenAI-compatible relevance endpoint.
+  unblocks: Verify real discovery using HTTP fixtures without provider keys or live billing.
+assumptions:
+  - id: select-existing-candidate
+    status: supported
+    claim: Discovery sends candidate IDs to chat completions and returns only indexes mapped to publisher feed URLs.
+    reason: The model may rank candidates but never supplies the article output or an unverified URL.
+    verification: Local simulation on Postman CLI 1.75.0 served GET RSS and POST chat completions; the discovery script returned the fixture publisher URL. Unit tests cover invalid IDs and fallback.
+    source: discovery.py; scripts/simulation_check.py; tests/test_discovery.py; postman/mocks/sources/default.js
+    updated_at: "2026-11-17"
+fingerprints:
+  - id: article-discovery-local
+    date: "2026-11-17"
+    commit: "8596ede07e9f30573013637636c1d716f2e432fc (upstream contract)"
+    cli: "1.75.0"
